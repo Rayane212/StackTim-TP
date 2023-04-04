@@ -1,4 +1,4 @@
-using StackTim_TP.Model
+using StackTim_TP.Model;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.OpenApi.Any;
 using Microsoft.OpenApi.Models;
