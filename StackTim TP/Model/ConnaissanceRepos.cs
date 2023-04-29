@@ -1,4 +1,6 @@
-﻿using System.Data.SqlClient;
+﻿using Microsoft.Extensions.Configuration;
+using System.Data.SqlClient;
+using Dapper;
 
 namespace StackTim_TP.Model
 {
@@ -42,6 +44,37 @@ namespace StackTim_TP.Model
             }
         }
 
-       
+        public List<ConnaissanceEntity> GetAllConnaissance()
+        {
+            var oSqlConnection = new SqlConnection(_configuration?.GetConnectionString("SQL"));
+            return oSqlConnection.Query<ConnaissanceEntity>("Select * from Connaissance").ToList(); ;
+        }
+
+        public ConnaissanceEntity GetByCodeConnaissance(string codeConnaissance)
+        {
+            var oSqlConnection = new SqlConnection(_configuration?.GetConnectionString("SQL"));
+            return oSqlConnection.QueryFirstOrDefault<ConnaissanceEntity>("Select * from Connaissance where codeConnaissance = @CodeConnaissance", new { CodeConnaissance = codeConnaissance });
+
+        }
+        public ConnaissanceEntity GetByIdConnaissance(int id)
+        {
+            var oSqlConnection = new SqlConnection(_configuration?.GetConnectionString("SQL"));
+            return oSqlConnection.QueryFirstOrDefault<ConnaissanceEntity>("Select * from Connaissance where idConnaissance = @Id", new { Id = id });
+
+        }
+
+        public int UpdateConnaissance(ConnaissanceEntity ce)
+        {
+            var oSqlConnection = new SqlConnection(_configuration?.GetConnectionString("SQL"));
+            return oSqlConnection.Execute("Update Connaissance set codeConnaissance = @CodeConnaissance, nomConnaissance = @NomConnaissance, descriptifConnaissance = @DConnaissance, codeRessource = @CodeRessource where idConnaissance = @Id", new { Id = ce.idConnaissance, CodeConnaissance = ce.codeConnaissance, NomConnaissance = ce.nomConnaissance, DConnaissance = ce.descriptifConnaissance, CodeRessource = ce.codeRessource });
+
+        }
+
+        public int DeleteConnaissance(int id)
+        {
+            var oSqlConnection = new SqlConnection(_configuration?.GetConnectionString("SQL"));
+            return oSqlConnection.Execute("delete from Connaissance where idConnaissance = @Id", new { Id = id });
+
+        }
     }
 }

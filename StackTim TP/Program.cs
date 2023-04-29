@@ -33,19 +33,59 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.MapPut("/CreateConnaissances", (IConfiguration _config,ConnaissanceEntity ce) =>
+// Create Connaissance
+app.MapPut("/CreateConnaissance", (IConfiguration _config,ConnaissanceEntity ce) =>
 {
     var ok = new ConnaissanceRepos(_config).Insert(ce);
     return (ok != -1) ? Results.Created($"/{ok}", ce) : Results.Problem(new ProblemDetails { Detail = "L'insert n'a pas marché", Status = 500 });
 
 });
 
+// Read Connaissances
 app.MapGet("/GetAllConnaissance", (IConfiguration _config) =>
 {
-    var ce = new ConnaissanceEntity();
-    var oSqlConnection = new SqlConnection(_config?.GetConnectionString("SQL"));
-    return oSqlConnection.Query("Select * from Connaissance");
+    
+        var ok = new ConnaissanceRepos(_config).GetAllConnaissance();
+        return ok;
+    
 });
+
+app.MapGet("/GetByIdConnaissance/{idConnaissance}", (IConfiguration _config, int id) =>
+{
+    var ce = new ConnaissanceRepos(_config).GetByIdConnaissance(id);
+    return ce;
+});
+
+app.MapGet("/GetByCodeConnaissance/{codeConnaissance}", (IConfiguration _config, string codeConnaissance) =>
+{
+    var ce = new ConnaissanceRepos(_config).GetByCodeConnaissance(codeConnaissance);
+    return ce;
+
+});
+
+
+
+// Update Connaissances 
+app.MapPost("/UpdateConnaissance/{idConnaissance}", (IConfiguration _config, ConnaissanceEntity ce) =>
+{
+    var ok = new ConnaissanceRepos(builder.Configuration).UpdateConnaissance(ce);
+    return ok > 0 ? Results.NoContent() : Results.Problem(new ProblemDetails { Detail = "L'update n'a pas marché", Status = 500 });
+});
+
+// Delete Connaissance 
+app.MapDelete("/DeleteConnaissance/{idConnaissance}", (IConfiguration _config, int id) =>
+{
+    var ok = new ConnaissanceRepos(builder.Configuration).DeleteConnaissance(id);
+    return ok;
+
+});
+
+// Create Categorie 
+app.MapPut("CreateCategorie", () =>
+{
+
+});
+
 app.UseHttpsRedirection();
 
 app.UseAuthorization();
