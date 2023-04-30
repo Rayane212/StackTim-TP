@@ -68,21 +68,59 @@ app.MapGet("/GetByCodeConnaissance/{codeConnaissance}", (IConfiguration _config,
 // Update Connaissances 
 app.MapPost("/UpdateConnaissance/{idConnaissance}", (IConfiguration _config, ConnaissanceEntity ce) =>
 {
-    var ok = new ConnaissanceRepos(builder.Configuration).UpdateConnaissance(ce);
+    var ok = new ConnaissanceRepos(_config).UpdateConnaissance(ce);
     return ok > 0 ? Results.NoContent() : Results.Problem(new ProblemDetails { Detail = "L'update n'a pas marché", Status = 500 });
 });
 
 // Delete Connaissance 
 app.MapDelete("/DeleteConnaissance/{idConnaissance}", (IConfiguration _config, int id) =>
 {
-    var ok = new ConnaissanceRepos(builder.Configuration).DeleteConnaissance(id);
+    var ok = new ConnaissanceRepos(_config).DeleteConnaissance(id);
     return ok;
 
 });
 
 // Create Categorie 
-app.MapPut("CreateCategorie", () =>
+app.MapPut("CreateCategorie", (IConfiguration _config, CategorieEntity categorie) =>
 {
+    var ok = new CategorieRepos(_config).InsertCategorie(categorie);
+    return ok ;
+});
+
+// Read Categorie 
+app.MapGet("/GetAllCategorie", (IConfiguration _config) =>
+{
+
+    var ok = new CategorieRepos(_config).GetAllCategorie();
+    return ok;
+
+});
+
+app.MapGet("/GetByIdCategorie/{idCategorie}", (IConfiguration _config, int id) =>
+{
+    var ce = new CategorieRepos(_config).GetByIdCategorie(id);
+    return ce;
+});
+
+app.MapGet("/GetByCodeCategorie/{codeCategorie}", (IConfiguration _config, string codeCategorie) =>
+{
+    var ce = new CategorieRepos(_config).GetByCodeCategorie(codeCategorie);
+    return ce;
+
+});
+
+// Update Categorie 
+app.MapPost("/UpdateCategorie/{idCategorie}", (IConfiguration _config, CategorieEntity categorie) =>
+{
+    var ok = new CategorieRepos(_config).UpdateCategorie(categorie);
+    return ok > 0 ? Results.NoContent() : Results.Problem(new ProblemDetails { Detail = "L'update n'a pas marché", Status = 500 });
+});
+
+// Delete Categorie 
+app.MapDelete("/DeleteCategorie/{idCategorie}", (IConfiguration _config, int id) =>
+{
+    var ok = new CategorieRepos(_config).DeleteCategorie(id);
+    return ok;
 
 });
 

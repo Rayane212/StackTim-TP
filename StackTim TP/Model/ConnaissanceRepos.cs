@@ -63,10 +63,10 @@ namespace StackTim_TP.Model
 
         }
 
-        public int UpdateConnaissance(ConnaissanceEntity ce)
+        public int UpdateConnaissance(ConnaissanceEntity connaissance)
         {
             var oSqlConnection = new SqlConnection(_configuration?.GetConnectionString("SQL"));
-            return oSqlConnection.Execute("Update Connaissance set codeConnaissance = @CodeConnaissance, nomConnaissance = @NomConnaissance, descriptifConnaissance = @DConnaissance, codeRessource = @CodeRessource where idConnaissance = @Id", new { Id = ce.idConnaissance, CodeConnaissance = ce.codeConnaissance, NomConnaissance = ce.nomConnaissance, DConnaissance = ce.descriptifConnaissance, CodeRessource = ce.codeRessource });
+            return oSqlConnection.Execute("Update Connaissance set codeConnaissance = @CodeConnaissance, nomConnaissance = @NomConnaissance, descriptifConnaissance = @descriptifConnaissance, codeRessource = @CodeRessource where idConnaissance = @idConnaissance", connaissance);
 
         }
 
