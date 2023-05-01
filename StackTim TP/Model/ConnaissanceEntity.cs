@@ -7,5 +7,6 @@
         public string nomConnaissance { get;set; }
         public string? descriptifConnaissance { get; set; }
         public string? codeRessource { get; set; }
+        public string codeUtilisateur { get; set; } 
     }
 }

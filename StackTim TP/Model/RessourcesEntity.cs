@@ -8,6 +8,7 @@
         public DateTime? datePublication { get; set; }
         public string? creerPar { get; set; }
         public string? descriptifRessource { get; set; }
+        public string codeUtilisateur { get; set; }
 
 
     }

@@ -15,7 +15,7 @@ namespace StackTim_TP.Model
         public int InsertCategorie(CategorieEntity categorie)
         {
             var oSqlConnection = new SqlConnection(_configuration?.GetConnectionString("SQL"));
-            return oSqlConnection.Execute("Insert into Categorie(codeCategorie, nomCategorie, descriptifCategorie) values (@codecategorie, @nomCategorie, @descriptifCategorie) ", categorie);
+            return oSqlConnection.Execute("Insert into Categorie(codeCategorie, nomCategorie, descriptifCategorie, codeUtlisateur) values (@codecategorie, @nomCategorie, @descriptifCategorie, @codeUtlisateur) ", categorie);
         }
 
 

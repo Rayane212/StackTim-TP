@@ -13,7 +13,7 @@ namespace StackTim_TP.Model
             _configuration = configuration; 
         }
 
-        public int Insert(ConnaissanceEntity ce)
+        public int Insert(ConnaissanceEntity ce, string codeUtilisateur)
         {
             try
             {
@@ -24,13 +24,16 @@ namespace StackTim_TP.Model
                 var oSqlParam2 = new SqlParameter("@nomConnaissance", ce.nomConnaissance); 
                 var oSqlParam3 = new SqlParameter("@descriptifConnaissance", ce.descriptifConnaissance);
                 var oSqlParam4 = new SqlParameter("@codeRessource", ce.codeRessource) ;
+                var oSqlParam5 = new SqlParameter("@codeUtilisateur", codeUtilisateur);
 
-                var oSqlCommand = new SqlCommand("Insert into Connaissance(codeConnaissance, nomConnaissance, descriptifConnaissance, codeRessource) values (@codeConnaissance, @nomConnaissance, @descriptifConnaissance, @codeRessource); select @@identity; ");
+
+                var oSqlCommand = new SqlCommand("Insert into Connaissance(codeConnaissance, nomConnaissance, descriptifConnaissance, codeRessource, codeUtlisateur) values (@codeConnaissance, @nomConnaissance, @descriptifConnaissance, @codeRessource, @codeUtlisateur); select @@identity; ");
                 //oSqlCommand.Parameters.Add(oSqlParam);
                 oSqlCommand.Parameters.Add(oSqlParam1);
                 oSqlCommand.Parameters.Add(oSqlParam2);
                 oSqlCommand.Parameters.Add(oSqlParam3);
                 oSqlCommand.Parameters.Add(oSqlParam4);
+                oSqlCommand.Parameters.Add(oSqlParam5);
 
                 oSqlCommand.Connection = oSqlConnection;
                 oSqlConnection.Open();
@@ -44,36 +47,43 @@ namespace StackTim_TP.Model
             }
         }
 
-        public List<ConnaissanceEntity> GetAllConnaissance()
+        public int InsertConnaissance(string codeUtilisateur, string codeConnaissance ,string nomConnaissance, string? descriptifConnaissance, string? codeRessource)
         {
             var oSqlConnection = new SqlConnection(_configuration?.GetConnectionString("SQL"));
-            return oSqlConnection.Query<ConnaissanceEntity>("Select * from Connaissance").ToList(); ;
-        }
-
-        public ConnaissanceEntity GetByCodeConnaissance(string codeConnaissance)
-        {
-            var oSqlConnection = new SqlConnection(_configuration?.GetConnectionString("SQL"));
-            return oSqlConnection.QueryFirstOrDefault<ConnaissanceEntity>("Select * from Connaissance where codeConnaissance = @CodeConnaissance", new { CodeConnaissance = codeConnaissance });
+            return oSqlConnection.Execute("Insert into Connaissance(codeConnaissance, nomConnaissance, descriptifConnaissance, codeRessource, codeUtilisateur) values (@codeConnaissance, @nomConnaissance, @descriptifConnaissance, @codeRessource, @codeUtilisateur);", new {CodeConnaissance = codeConnaissance, NomConnaissance = nomConnaissance, DescriptifConnaissance = descriptifConnaissance, CodeRessource = codeRessource ,CodeUtilisateur = codeUtilisateur });
 
         }
-        public ConnaissanceEntity GetByIdConnaissance(int id)
+
+        public List<ConnaissanceEntity> GetAllConnaissance(string codeUtilisateur)
         {
             var oSqlConnection = new SqlConnection(_configuration?.GetConnectionString("SQL"));
-            return oSqlConnection.QueryFirstOrDefault<ConnaissanceEntity>("Select * from Connaissance where idConnaissance = @Id", new { Id = id });
+            return oSqlConnection.Query<ConnaissanceEntity>("Select * from Connaissance where codeUtilisateur = @CodeUtilisateur", new {CodeUtilisateur = codeUtilisateur}).ToList(); ;
+        }
+
+        public ConnaissanceEntity GetByCodeConnaissance(string codeConnaissance, string codeUtilisateur)
+        {
+            var oSqlConnection = new SqlConnection(_configuration?.GetConnectionString("SQL"));
+            return oSqlConnection.QueryFirstOrDefault<ConnaissanceEntity>("Select * from Connaissance where codeConnaissance = @CodeConnaissance and ", new { CodeConnaissance = codeConnaissance, CodeUtilisateur = codeUtilisateur });
+
+        }
+        public ConnaissanceEntity GetByIdConnaissance(int id, string codeUtilisateur) 
+        {
+            var oSqlConnection = new SqlConnection(_configuration?.GetConnectionString("SQL"));
+            return oSqlConnection.QueryFirstOrDefault<ConnaissanceEntity>("Select * from Connaissance where idConnaissance = @Id and CodeUtilisateur = codeUtilisateur", new { Id = id, CodeUtilisateur = codeUtilisateur });
 
         }
 
         public int UpdateConnaissance(ConnaissanceEntity connaissance)
         {
             var oSqlConnection = new SqlConnection(_configuration?.GetConnectionString("SQL"));
-            return oSqlConnection.Execute("Update Connaissance set codeConnaissance = @CodeConnaissance, nomConnaissance = @NomConnaissance, descriptifConnaissance = @descriptifConnaissance, codeRessource = @CodeRessource where idConnaissance = @idConnaissance", connaissance);
+            return oSqlConnection.Execute("Update Connaissance set codeConnaissance = @CodeConnaissance, nomConnaissance = @NomConnaissance, descriptifConnaissance = @descriptifConnaissance, codeRessource = @CodeRessource where idConnaissance = @idConnaissance and CodeUtilisateur = @CodeUtilisateur", connaissance);
 
         }
 
-        public int DeleteConnaissance(int id)
+        public int DeleteConnaissance(int id, string codeUtilisateur)
         {
             var oSqlConnection = new SqlConnection(_configuration?.GetConnectionString("SQL"));
-            return oSqlConnection.Execute("delete from Connaissance where idConnaissance = @Id", new { Id = id });
+            return oSqlConnection.Execute("delete from Connaissance where idConnaissance = @Id and CodeUtilisateur = @codeUtilisateur", new { Id = id, CodeUtilisateur = codeUtilisateur });
 
         }
     }
