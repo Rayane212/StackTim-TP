@@ -47,10 +47,10 @@ namespace StackTim_TP.Model
             }
         }
 
-        public int InsertConnaissance(string codeUtilisateur, string codeConnaissance ,string nomConnaissance, string? descriptifConnaissance, string? codeRessource)
+        public int InsertConnaissance(ConnaissanceEntity connaissance)
         {
             var oSqlConnection = new SqlConnection(_configuration?.GetConnectionString("SQL"));
-            return oSqlConnection.Execute("Insert into Connaissance(codeConnaissance, nomConnaissance, descriptifConnaissance, codeRessource, codeUtilisateur) values (@codeConnaissance, @nomConnaissance, @descriptifConnaissance, @codeRessource, @codeUtilisateur);", new {CodeConnaissance = codeConnaissance, NomConnaissance = nomConnaissance, DescriptifConnaissance = descriptifConnaissance, CodeRessource = codeRessource ,CodeUtilisateur = codeUtilisateur });
+            return oSqlConnection.Execute("Insert into Connaissance(codeConnaissance, nomConnaissance, descriptifConnaissance, codeRessource, codeUtilisateur) values (@codeConnaissance, @nomConnaissance, @descriptifConnaissance, @codeRessource, @codeUtilisateur);", connaissance);
 
         }
 
@@ -63,13 +63,13 @@ namespace StackTim_TP.Model
         public ConnaissanceEntity GetByCodeConnaissance(string codeConnaissance, string codeUtilisateur)
         {
             var oSqlConnection = new SqlConnection(_configuration?.GetConnectionString("SQL"));
-            return oSqlConnection.QueryFirstOrDefault<ConnaissanceEntity>("Select * from Connaissance where codeConnaissance = @CodeConnaissance and ", new { CodeConnaissance = codeConnaissance, CodeUtilisateur = codeUtilisateur });
+            return oSqlConnection.QueryFirstOrDefault<ConnaissanceEntity>("Select * from Connaissance where codeConnaissance = @CodeConnaissance and CodeUtilisateur = @codeUtilisateur", new { CodeConnaissance = codeConnaissance, CodeUtilisateur = codeUtilisateur });
 
         }
         public ConnaissanceEntity GetByIdConnaissance(int id, string codeUtilisateur) 
         {
             var oSqlConnection = new SqlConnection(_configuration?.GetConnectionString("SQL"));
-            return oSqlConnection.QueryFirstOrDefault<ConnaissanceEntity>("Select * from Connaissance where idConnaissance = @Id and CodeUtilisateur = codeUtilisateur", new { Id = id, CodeUtilisateur = codeUtilisateur });
+            return oSqlConnection.QueryFirstOrDefault<ConnaissanceEntity>("Select * from Connaissance where idConnaissance = @Id and CodeUtilisateur = @codeUtilisateur", new { Id = id, CodeUtilisateur = codeUtilisateur });
 
         }
 
@@ -86,5 +86,20 @@ namespace StackTim_TP.Model
             return oSqlConnection.Execute("delete from Connaissance where idConnaissance = @Id and CodeUtilisateur = @codeUtilisateur", new { Id = id, CodeUtilisateur = codeUtilisateur });
 
         }
+
+       
+        public async Task<bool> ExistingConnaissance(string codeConnaissance, string userId)
+        {
+            using (var connection = new SqlConnection(_configuration?.GetConnectionString("SQL")))
+            {
+                await connection.OpenAsync();
+                var result = await connection.QuerySingleOrDefaultAsync<int>(
+                    "SELECT 1 FROM Connaissance WHERE codeConnaissance = @CodeConnaissance ANDcodeUtilisateur = @CodeUtilisateur",
+                    new { CodeConnaissance = codeConnaissance.ToUpper(), CodeUtilisateur = userId });
+                return result != default(int);
+            }
+        }
+
+
     }
 }
