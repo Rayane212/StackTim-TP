@@ -11,6 +11,13 @@ using Microsoft.AspNetCore.Session;
 using static System.Net.WebRequestMethods;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
+using System.Security.Cryptography;
+using Newtonsoft.Json;
+using StackTim_TP;
 
 var builder = WebApplication.CreateBuilder(args);
 var MyAllowSpecificOrigins = "_myAllowSpecificOrigins";
@@ -19,7 +26,7 @@ builder.Services.AddCors(options =>
     options.AddPolicy(name: MyAllowSpecificOrigins,
                       policy =>
                       {
-                          policy.WithOrigins("http://localhost:3000").AllowAnyOrigin().AllowAnyHeader().AllowCredentials().AllowAnyMethod();
+                          policy.WithOrigins("*").AllowAnyHeader().AllowAnyMethod();
 
                       });
 });
@@ -51,39 +58,66 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseSession();
-
+app.UseCors(MyAllowSpecificOrigins);
 // SignIn 
-app.MapPost("/signIn", async (IConfiguration _config, HttpContext http, string username, string mdp) =>
+app.MapPost("/signIn", async (IConfiguration _config, HttpContext http) =>
 {
-    // Vérifier que les identifiants sont valides
-    using var connection = new SqlConnection(builder.Configuration.GetConnectionString("SQL"));
-    var user = await connection.QuerySingleOrDefaultAsync<UtilisateursEntity>(
-        "SELECT * FROM Utilisateurs WHERE EmailUtilisateur = @EmailUtilisateur OR nomUtilisateur = @nomUtilisateur AND MotDePasse = @MotDePasse", new { EmailUtilisateur = username, nomUtilisateur = username, MotDePasse = mdp});
-    if (user == null)
+    try
     {
-        http.Response.StatusCode = 401; // Code HTTP 401 Unauthorized
-        await http.Response.WriteAsync("Adresse email ou mot de passe incorrect.");
+        // Récupération des identifiants de l'utilisateur
+        string username = http.Request.Form["nomUtilisateur"];
+        string password = http.Request.Form["MotDePasse"];
+
+        // Vérifier que les identifiants sont valides
+        using var connection = new SqlConnection(builder.Configuration.GetConnectionString("SQL"));
+        var user = await connection.QuerySingleOrDefaultAsync<UtilisateursEntity>(
+            "SELECT * FROM Utilisateurs WHERE EmailUtilisateur = @EmailUtilisateur OR nomUtilisateur = @nomUtilisateur AND MotDePasse = @MotDePasse", new { EmailUtilisateur = username, nomUtilisateur = username, MotDePasse = password });
+        if (user == null)
+        {
+            http.Response.StatusCode = 401; // Code HTTP 401 Unauthorized
+            await http.Response.WriteAsync("Adresse email ou mot de passe incorrect.");
+            return;
+        }
+
+        // Création du token d'authentification
+        var tokenHandler = new JwtSecurityTokenHandler();
+        var key = Encoding.ASCII.GetBytes(_config["JwtConfig:Secret"]);
+        var tokenDescriptor = new SecurityTokenDescriptor
+        {
+            Subject = new ClaimsIdentity(new[]
+            {
+                new Claim(ClaimTypes.NameIdentifier, user.codeUtilisateur.ToString()),
+                new Claim(ClaimTypes.Name, user.nomUtilisateur),
+                new Claim(ClaimTypes.Email, user.emailUtilisateur),
+            }),
+            Expires = DateTime.UtcNow.AddHours(2),
+            SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
+        };
+        var token = tokenHandler.CreateToken(tokenDescriptor);
+        var tokenString = tokenHandler.WriteToken(token);
+
+      
+        // Retourner le token d'authentification dans la réponse du serveur
+        http.Response.StatusCode = 200;
+        http.Response.ContentType = "application/json";
+        await http.Response.WriteAsync(JsonConvert.SerializeObject(new { Token = tokenString }));
+    }
+    catch (Exception ex)
+    {
+        http.Response.StatusCode = 400; // Code HTTP 400 Bad Request
+        await http.Response.WriteAsync(ex.Message);
         return;
     }
-    IMemoryCache cache = new MemoryCache(new MemoryCacheOptions());
-    cache.Set("UserId", user.codeUtilisateur);
-
-
-
-    // Stocker l'identifiant de l'utilisateur dans la session
-    http.Session.SetString("UserId", user.codeUtilisateur);
-
-
-    http.Response.StatusCode = 200; // Code HTTP 200 OK
-    await http.Response.WriteAsync($"Utilisateur {user.codeUtilisateur} connecté avec succès.");
 });
 
-app.MapPut("/signUp", async (IConfiguration _config, HttpContext http, string nom, string email ,string mdp) =>
+
+
+app.MapPut("/signUp", async (IConfiguration _config, HttpContext http, UtilisateursEntity utilisateur) =>
 {
-    var userId = nom.ToUpper() + new Guid(Guid.NewGuid().ToString()); 
+    var userId = utilisateur.nomUtilisateur.ToUpper() + new Guid(Guid.NewGuid().ToString());
     using var connection = new SqlConnection(builder.Configuration.GetConnectionString("SQL"));
     var existingUser = await connection.QuerySingleOrDefaultAsync<UtilisateursEntity>(
-        "SELECT * FROM Utilisateurs WHERE EmailUtilisateur = @EmailUtilisateur OR nomUtilisateur = @nomUtilisateur", new { EmailUtilisateur = email, nomUtilisateur = nom });
+        "SELECT * FROM Utilisateurs WHERE EmailUtilisateur = @EmailUtilisateur OR nomUtilisateur = @nomUtilisateur", new { utilisateur.emailUtilisateur, utilisateur.nomUtilisateur });
     if (existingUser != null)
     {
         http.Response.StatusCode = 409; // Code HTTP 409 Conflict
@@ -91,15 +125,13 @@ app.MapPut("/signUp", async (IConfiguration _config, HttpContext http, string no
         return;
     }
     await connection.QueryAsync<UtilisateursEntity>(
-        "INSERT INTO Utilisateurs (nomUtilisateur, EmailUtilisateur, MotDePasse, codeUtilisateur) VALUES (@nomUtilisateur, @EmailUtilisateur, @MotDePasse, @codeUtilisateur)", new { nomUtilisateur = nom, EmailUtilisateur = email, MotDePasse = mdp, codeUtilisateur = userId });    
+        "INSERT INTO Utilisateurs (nomUtilisateur, EmailUtilisateur, MotDePasse, codeUtilisateur) VALUES (@nomUtilisateur, @EmailUtilisateur, @MotDePasse, @codeUtilisateur)", new { utilisateur.nomUtilisateur, utilisateur.emailUtilisateur, utilisateur.motDePasse, codeUtilisateur = userId });
 
 
     http.Response.StatusCode = 200; // Code HTTP 200 OK
     await http.Response.WriteAsync($"Utilisateur {userId} créé avec succès.");
-
-   // http.Response.Redirect("/signIn");
-
 });
+
 
 // logout
 app.MapPost("/logout", async (HttpContext http) =>
@@ -144,7 +176,12 @@ app.MapPut("/CreateConnaissance",async (IConfiguration _config, ConnaissanceEnti
 // Read Connaissances
 app.MapGet("/GetAllConnaissance", async (IConfiguration _config, HttpContext http) =>
 {
-    var userId = http.Session.GetString("UserId");
+    //var userId = http.Session.GetString("UserId");
+    var token = http.Request.Headers["Authorization"].ToString().Split(" ")[1]; 
+
+    var claims = JwtUtils.DecodeJwt(token, _config["JwtConfig:Secret"]);
+    var userId = claims[ClaimTypes.NameIdentifier]; 
+
     if (userId == null || userId == "")
     {
         http.Response.StatusCode = 401; 
@@ -163,7 +200,10 @@ app.MapGet("/GetAllConnaissance", async (IConfiguration _config, HttpContext htt
 
 app.MapGet("/GetByIdConnaissance/{idConnaissance}", async (IConfiguration _config, int id, HttpContext http) =>
 {
-    var userId = http.Session.GetString("UserId");
+     var token = http.Request.Headers["Authorization"].ToString().Split(" ")[1];
+    var claims = JwtUtils.DecodeJwt(token, _config["JwtConfig:Secret"]);
+    var userId = claims[ClaimTypes.NameIdentifier];
+
     if (userId == null)
     {
         http.Response.StatusCode = 401;
@@ -179,8 +219,9 @@ app.MapGet("/GetByIdConnaissance/{idConnaissance}", async (IConfiguration _confi
 
 app.MapGet("/GetByCodeConnaissance/{codeConnaissance}", async (IConfiguration _config, string codeConnaissance, HttpContext http) =>
 {
-    var userId = http.Session.GetString("UserId");
-    if (userId == null)
+    var token = http.Request.Headers["Authorization"].ToString().Split(" ")[1];
+    var claims = JwtUtils.DecodeJwt(token, _config["JwtConfig:Secret"]);
+    var userId = claims[ClaimTypes.NameIdentifier]; if (userId == null)
     {
         http.Response.StatusCode = 401;
         await http.Response.WriteAsync("Utilisateur non connecté.");
@@ -196,8 +237,9 @@ app.MapGet("/GetByCodeConnaissance/{codeConnaissance}", async (IConfiguration _c
 // Update Connaissances 
 app.MapPost("/UpdateConnaissance/{idConnaissance}", async (IConfiguration _config, ConnaissanceEntity connaissance, HttpContext http) =>
 {
-    var userId = http.Session.GetString("UserId");
-    var code = connaissance.codeConnaissance.ToUpper();
+    var token = http.Request.Headers["Authorization"].ToString().Split(" ")[1];
+    var claims = JwtUtils.DecodeJwt(token, _config["JwtConfig:Secret"]);
+    var userId = claims[ClaimTypes.NameIdentifier]; var code = connaissance.codeConnaissance.ToUpper();
     var existingConnaissance = await new ConnaissanceRepos(_config).ExistingConnaissance(code, userId);
     if ((userId != null || userId != "") && existingConnaissance == false)
     {
@@ -222,8 +264,9 @@ app.MapPost("/UpdateConnaissance/{idConnaissance}", async (IConfiguration _confi
 // Delete Connaissance 
 app.MapDelete("/DeleteConnaissance/{idConnaissance}", (IConfiguration _config, int id, HttpContext http) =>
 {
-    var userId = http.Session.GetString("UserId");
-    if (userId != null || userId != "")
+    var token = http.Request.Headers["Authorization"].ToString().Split(" ")[1];
+    var claims = JwtUtils.DecodeJwt(token, _config["JwtConfig:Secret"]);
+    var userId = claims[ClaimTypes.NameIdentifier]; if (userId != null || userId != "")
     {
         var ok = new ConnaissanceRepos(_config).DeleteConnaissance(id, userId);
         return ok > 0 ? Results.Ok() : Results.Problem(new ProblemDetails { Detail = "Le delete n'a pas marché", Status = 500 });
@@ -238,8 +281,10 @@ app.MapDelete("/DeleteConnaissance/{idConnaissance}", (IConfiguration _config, i
 // Create Categorie 
 app.MapPut("CreateCategorie", async (IConfiguration _config, CategorieEntity categorie, HttpContext http) =>
 {
-    var userId = http.Session.GetString("UserId");
-    var code = categorie.codeCategorie.ToUpper();
+    var token = http.Request.Headers["Authorization"].ToString().Split(" ")[1];
+    var claims = JwtUtils.DecodeJwt(token, _config["JwtConfig:Secret"]);
+    var userId = claims[ClaimTypes.NameIdentifier]; var code = categorie.codeCategorie.ToUpper();
+
     var existingCategorie = await new CategorieRepos(_config).ExistingCategorie(code, userId);
 
     if ((userId != null || userId != "") && existingCategorie == false)
@@ -265,8 +310,10 @@ app.MapPut("CreateCategorie", async (IConfiguration _config, CategorieEntity cat
 // Read Categorie 
 app.MapGet("/GetAllCategorie", async (IConfiguration _config, HttpContext http) =>
 {
-    var userId = http.Session.GetString("UserId");
-    if (userId == null || userId == "")
+    var token = http.Request.Headers["Authorization"].ToString().Split(" ")[1];
+    var claims = JwtUtils.DecodeJwt(token, _config["JwtConfig:Secret"]);
+    var userId = claims[ClaimTypes.NameIdentifier]; if (userId == null || userId == "")
+
     {
         http.Response.StatusCode = 401;
         await http.Response.WriteAsync("Utilisateur non connecté.");
@@ -283,8 +330,10 @@ app.MapGet("/GetAllCategorie", async (IConfiguration _config, HttpContext http) 
 app.MapGet("/GetByIdCategorie/{idCategorie}", async (IConfiguration _config, int id, HttpContext http) =>
 {
 
-    var userId = http.Session.GetString("UserId");
-    if (userId == null || userId == "")
+    var token = http.Request.Headers["Authorization"].ToString().Split(" ")[1];
+    var claims = JwtUtils.DecodeJwt(token, _config["JwtConfig:Secret"]);
+    var userId = claims[ClaimTypes.NameIdentifier]; if (userId == null || userId == "")
+
     {
         http.Response.StatusCode = 401;
         await http.Response.WriteAsync("Utilisateur non connecté.");
@@ -299,8 +348,10 @@ app.MapGet("/GetByIdCategorie/{idCategorie}", async (IConfiguration _config, int
 app.MapGet("/GetByCodeCategorie/{codeCategorie}", async (IConfiguration _config, string codeCategorie, HttpContext http) =>
 {
 
-    var userId = http.Session.GetString("UserId");
-    if (userId == null || userId == "")
+    var token = http.Request.Headers["Authorization"].ToString().Split(" ")[1];
+    var claims = JwtUtils.DecodeJwt(token, _config["JwtConfig:Secret"]);
+    var userId = claims[ClaimTypes.NameIdentifier]; if (userId == null || userId == "")
+
     {
         http.Response.StatusCode = 401;
         await http.Response.WriteAsync("Utilisateur non connecté.");
@@ -317,7 +368,9 @@ app.MapGet("/GetByCodeCategorie/{codeCategorie}", async (IConfiguration _config,
 // Update Categorie 
 app.MapPost("/UpdateCategorie/{idCategorie}",async  (IConfiguration _config, CategorieEntity categorie, HttpContext http) =>
 {
-    var userId = http.Session.GetString("UserId");
+    var token = http.Request.Headers["Authorization"].ToString().Split(" ")[1];
+    var claims = JwtUtils.DecodeJwt(token, _config["JwtConfig:Secret"]);
+    var userId = claims[ClaimTypes.NameIdentifier]; 
     var code = categorie.codeCategorie.ToUpper();
     var existingCategorie = await new CategorieRepos(_config).ExistingCategorie(code, userId);
 
@@ -337,8 +390,9 @@ app.MapPost("/UpdateCategorie/{idCategorie}",async  (IConfiguration _config, Cat
 // Delete Categorie 
 app.MapDelete("/DeleteCategorie/{idCategorie}",  (IConfiguration _config, int id, HttpContext http) =>
 {
-    var userId = http.Session.GetString("UserId");
-    if (userId != null || userId != "")
+    var token = http.Request.Headers["Authorization"].ToString().Split(" ")[1];
+    var claims = JwtUtils.DecodeJwt(token, _config["JwtConfig:Secret"]);
+    var userId = claims[ClaimTypes.NameIdentifier]; if (userId != null || userId != "")
     {
         var ok = new CategorieRepos(_config).DeleteCategorie(id, userId);
         return ok > 0 ? Results.Ok() : Results.Problem(new ProblemDetails { Detail = "Le delete n'a pas marché", Status = 500 });
@@ -353,8 +407,9 @@ app.MapDelete("/DeleteCategorie/{idCategorie}",  (IConfiguration _config, int id
 // Create Ressource
 app.MapPut("/CreateRessource", async (IConfiguration _config, RessourcesEntity Ressource, HttpContext http) =>
 {
-    var userId = http.Session.GetString("UserId");
-    var code = Ressource.codeRessource.ToUpper();
+    var token = http.Request.Headers["Authorization"].ToString().Split(" ")[1];
+    var claims = JwtUtils.DecodeJwt(token, _config["JwtConfig:Secret"]);
+    var userId = claims[ClaimTypes.NameIdentifier]; var code = Ressource.codeRessource.ToUpper();
     var existingRessource = await new RessourcesRepos(_config).ExistingRessource(code, userId);
     var oSqlConnection = new SqlConnection(_config?.GetConnectionString("SQL"));
 
@@ -383,8 +438,9 @@ app.MapPut("/CreateRessource", async (IConfiguration _config, RessourcesEntity R
 // Read Ressources
 app.MapGet("/GetAllRessource", async (IConfiguration _config, HttpContext http) =>
 {
-    var userId = http.Session.GetString("UserId");
-    if (userId == null || userId == "")
+    var token = http.Request.Headers["Authorization"].ToString().Split(" ")[1];
+    var claims = JwtUtils.DecodeJwt(token, _config["JwtConfig:Secret"]);
+    var userId = claims[ClaimTypes.NameIdentifier]; if (userId == null || userId == "")
     {
         http.Response.StatusCode = 401;
         await http.Response.WriteAsync("Utilisateur non connecté.");
@@ -402,8 +458,9 @@ app.MapGet("/GetAllRessource", async (IConfiguration _config, HttpContext http) 
 
 app.MapGet("/GetByIdRessource/{idRessource}", async (IConfiguration _config, int id, HttpContext http) =>
 {
-    var userId = http.Session.GetString("UserId");
-    if (userId == null)
+    var token = http.Request.Headers["Authorization"].ToString().Split(" ")[1];
+    var claims = JwtUtils.DecodeJwt(token, _config["JwtConfig:Secret"]);
+    var userId = claims[ClaimTypes.NameIdentifier]; if (userId == null)
     {
         http.Response.StatusCode = 401;
         await http.Response.WriteAsync("Utilisateur non connecté.");
@@ -418,8 +475,10 @@ app.MapGet("/GetByIdRessource/{idRessource}", async (IConfiguration _config, int
 
 app.MapGet("/GetByCodeRessource/{codeRessource}", async (IConfiguration _config, string codeRessource, HttpContext http) =>
 {
-    var userId = http.Session.GetString("UserId");
-    if (userId == null)
+    var token = http.Request.Headers["Authorization"].ToString().Split(" ")[1];
+    var claims = JwtUtils.DecodeJwt(token, _config["JwtConfig:Secret"]);
+    var userId = claims[ClaimTypes.NameIdentifier]; if (userId == null)
+
     {
         http.Response.StatusCode = 401;
         await http.Response.WriteAsync("Utilisateur non connecté.");
@@ -435,8 +494,9 @@ app.MapGet("/GetByCodeRessource/{codeRessource}", async (IConfiguration _config,
 // Update Ressources 
 app.MapPost("/UpdateRessource/{idRessource}", async (IConfiguration _config, RessourcesEntity Ressource, HttpContext http) =>
 {
-    var userId = http.Session.GetString("UserId");
-    var code = Ressource.codeRessource.ToUpper();
+    var token = http.Request.Headers["Authorization"].ToString().Split(" ")[1];
+    var claims = JwtUtils.DecodeJwt(token, _config["JwtConfig:Secret"]);
+    var userId = claims[ClaimTypes.NameIdentifier]; var code = Ressource.codeRessource.ToUpper();
     var existingRessource = await new RessourcesRepos(_config).ExistingRessource(code, userId);
     if ((userId != null || userId != "") && existingRessource == false)
     {
@@ -461,8 +521,9 @@ app.MapPost("/UpdateRessource/{idRessource}", async (IConfiguration _config, Res
 // Delete Ressource 
 app.MapDelete("/DeleteRessource/{idRessource}", (IConfiguration _config, int id, HttpContext http) =>
 {
-    var userId = http.Session.GetString("UserId");
-    if (userId != null || userId != "")
+    var token = http.Request.Headers["Authorization"].ToString().Split(" ")[1];
+    var claims = JwtUtils.DecodeJwt(token, _config["JwtConfig:Secret"]);
+    var userId = claims[ClaimTypes.NameIdentifier]; if (userId != null || userId != "")
     {
         var ok = new RessourcesRepos(_config).DeleteRessource(id, userId);
         return ok > 0 ? Results.Ok() : Results.Problem(new ProblemDetails { Detail = "Le delete n'a pas marché", Status = 500 });
@@ -477,8 +538,9 @@ app.MapDelete("/DeleteRessource/{idRessource}", (IConfiguration _config, int id,
 // Create Projet
 app.MapPut("/CreateProjet", async (IConfiguration _config, ProjetsEntity Projet, HttpContext http) =>
 {
-    var userId = http.Session.GetString("UserId");
-    var code = Projet.codeProjet.ToUpper();
+    var token = http.Request.Headers["Authorization"].ToString().Split(" ")[1];
+    var claims = JwtUtils.DecodeJwt(token, _config["JwtConfig:Secret"]);
+    var userId = claims[ClaimTypes.NameIdentifier]; var code = Projet.codeProjet.ToUpper();
     var existingProjet = await new ProjetsRepos(_config).ExistingProjet(code, userId);
     var oSqlConnection = new SqlConnection(_config?.GetConnectionString("SQL"));
 
@@ -508,8 +570,9 @@ app.MapPut("/CreateProjet", async (IConfiguration _config, ProjetsEntity Projet,
 // Read Projets
 app.MapGet("/GetAllProjet", async (IConfiguration _config, HttpContext http) =>
 {
-    var userId = http.Session.GetString("UserId");
-    if (userId == null || userId == "")
+    var token = http.Request.Headers["Authorization"].ToString().Split(" ")[1];
+    var claims = JwtUtils.DecodeJwt(token, _config["JwtConfig:Secret"]);
+    var userId = claims[ClaimTypes.NameIdentifier]; if (userId == null || userId == "")
     {
         http.Response.StatusCode = 401;
         await http.Response.WriteAsync("Utilisateur non connecté.");
@@ -527,8 +590,9 @@ app.MapGet("/GetAllProjet", async (IConfiguration _config, HttpContext http) =>
 
 app.MapGet("/GetByIdProjet/{idProjet}", async (IConfiguration _config, int id, HttpContext http) =>
 {
-    var userId = http.Session.GetString("UserId");
-    if (userId == null)
+    var token = http.Request.Headers["Authorization"].ToString().Split(" ")[1];
+    var claims = JwtUtils.DecodeJwt(token, _config["JwtConfig:Secret"]);
+    var userId = claims[ClaimTypes.NameIdentifier]; if (userId == null)
     {
         http.Response.StatusCode = 401;
         await http.Response.WriteAsync("Utilisateur non connecté.");
@@ -543,8 +607,9 @@ app.MapGet("/GetByIdProjet/{idProjet}", async (IConfiguration _config, int id, H
 
 app.MapGet("/GetByCodeProjet/{codeProjet}", async (IConfiguration _config, string codeProjet, HttpContext http) =>
 {
-    var userId = http.Session.GetString("UserId");
-    if (userId == null)
+    var token = http.Request.Headers["Authorization"].ToString().Split(" ")[1];
+    var claims = JwtUtils.DecodeJwt(token, _config["JwtConfig:Secret"]);
+    var userId = claims[ClaimTypes.NameIdentifier]; if (userId == null)
     {
         http.Response.StatusCode = 401;
         await http.Response.WriteAsync("Utilisateur non connecté.");
@@ -560,8 +625,9 @@ app.MapGet("/GetByCodeProjet/{codeProjet}", async (IConfiguration _config, strin
 // Update Projets 
 app.MapPost("/UpdateProjet/{idProjet}", async (IConfiguration _config, ProjetsEntity Projet, HttpContext http) =>
 {
-    var userId = http.Session.GetString("UserId");
-    var code = Projet.codeProjet.ToUpper();
+    var token = http.Request.Headers["Authorization"].ToString().Split(" ")[1];
+    var claims = JwtUtils.DecodeJwt(token, _config["JwtConfig:Secret"]);
+    var userId = claims[ClaimTypes.NameIdentifier]; var code = Projet.codeProjet.ToUpper();
     var existingProjet = await new ProjetsRepos(_config).ExistingProjet(code, userId);
     if ((userId != null || userId != "") && existingProjet == false)
     {
@@ -586,7 +652,9 @@ app.MapPost("/UpdateProjet/{idProjet}", async (IConfiguration _config, ProjetsEn
 // Delete Projet 
 app.MapDelete("/DeleteProjet/{idProjet}", (IConfiguration _config, int id, HttpContext http) =>
 {
-    var userId = http.Session.GetString("UserId");
+    var token = http.Request.Headers["Authorization"].ToString().Split(" ")[1];
+    var claims = JwtUtils.DecodeJwt(token, _config["JwtConfig:Secret"]);
+    var userId = claims[ClaimTypes.NameIdentifier];
     if (userId != null || userId != "")
     {
         var ok = new ProjetsRepos(_config).DeleteProjet(id, userId);
