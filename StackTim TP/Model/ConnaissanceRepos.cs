@@ -57,7 +57,7 @@ namespace StackTim_TP.Model
         public List<ConnaissanceEntity> GetAllConnaissance(string codeUtilisateur)
         {
             var oSqlConnection = new SqlConnection(_configuration?.GetConnectionString("SQL"));
-            return oSqlConnection.Query<ConnaissanceEntity>("Select * from Connaissance where codeUtilisateur = @CodeUtilisateur", new {CodeUtilisateur = codeUtilisateur}).ToList(); ;
+            return oSqlConnection.Query<ConnaissanceEntity>("Select * from Connaissance").ToList(); ;
         }
 
         public ConnaissanceEntity GetByCodeConnaissance(string codeConnaissance, string codeUtilisateur)
@@ -69,7 +69,7 @@ namespace StackTim_TP.Model
         public ConnaissanceEntity GetByIdConnaissance(int id, string codeUtilisateur) 
         {
             var oSqlConnection = new SqlConnection(_configuration?.GetConnectionString("SQL"));
-            return oSqlConnection.QueryFirstOrDefault<ConnaissanceEntity>("Select * from Connaissance where idConnaissance = @Id and CodeUtilisateur = @codeUtilisateur", new { Id = id, CodeUtilisateur = codeUtilisateur });
+            return oSqlConnection.QueryFirstOrDefault<ConnaissanceEntity>("Select * from Connaissance where idConnaissance = @Id ", new { Id = id});
 
         }
 
@@ -83,7 +83,7 @@ namespace StackTim_TP.Model
         public int DeleteConnaissance(int id, string codeUtilisateur)
         {
             var oSqlConnection = new SqlConnection(_configuration?.GetConnectionString("SQL"));
-            return oSqlConnection.Execute("delete from Connaissance where idConnaissance = @Id and CodeUtilisateur = @codeUtilisateur", new { Id = id, CodeUtilisateur = codeUtilisateur });
+            return oSqlConnection.Execute("delete from Connaissance where idConnaissance = @Id ", new { Id = id, CodeUtilisateur = codeUtilisateur });
 
         }
 
@@ -94,9 +94,22 @@ namespace StackTim_TP.Model
             {
                 await connection.OpenAsync();
                 var result = await connection.QuerySingleOrDefaultAsync<int>(
-                    "SELECT 1 FROM Connaissance WHERE codeConnaissance = @CodeConnaissance ANDcodeUtilisateur = @CodeUtilisateur",
+                    "SELECT 1 FROM Connaissance WHERE codeConnaissance = @CodeConnaissance",
                     new { CodeConnaissance = codeConnaissance.ToUpper(), CodeUtilisateur = userId });
                 return result != default(int);
+            }
+        }
+
+        public async Task<bool> RedondanceConnaissance(string codeConnaissance, string userId)
+        {
+            using (var connection = new SqlConnection(_configuration?.GetConnectionString("SQL")))
+            {
+                await connection.OpenAsync();
+                var result = await connection.QuerySingleOrDefaultAsync<int>(
+                    @"SELECT COUNT(*) FROM Connaissance WHERE codeConnaissance = @CodeConnaissance ",
+                    new { CodeConnaissance = codeConnaissance.ToUpper(), CodeUtilisateur = userId });
+
+                return result > 0;
             }
         }
 

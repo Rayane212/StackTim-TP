@@ -136,13 +136,8 @@ app.MapPut("/signUp", async (IConfiguration _config, HttpContext http, Utilisate
 // logout
 app.MapPost("/logout", async (HttpContext http) =>
 {
-    // Vider la session
-    http.Session.Clear();
 
-    // Vider le cache
-    http.RequestServices.GetService<IMemoryCache>().Remove(http.Session.GetString("UserId"));
-
-    // Rediriger vers la page d'accueil ou une autre page de votre choix
+    http.Request.Headers.Remove("Authorization");
     http.Response.Redirect("/");
 });
 
@@ -150,13 +145,14 @@ app.MapPost("/logout", async (HttpContext http) =>
 // Create Connaissance
 app.MapPut("/CreateConnaissance",async (IConfiguration _config, ConnaissanceEntity connaissance, HttpContext http) =>
 {
-    var userId = http.Session.GetString("UserId");
-    var code = connaissance.codeConnaissance.ToUpper();
+    var token = http.Request.Headers["Authorization"].ToString().Split(" ")[1];
+    var claims = JwtUtils.DecodeJwt(token, _config["JwtConfig:Secret"]);
+    var userId = claims[ClaimTypes.NameIdentifier]; var code = connaissance.codeConnaissance.ToUpper();
     var existingConnaissance = await new ConnaissanceRepos(_config).ExistingConnaissance(code, userId);
     if ( (userId != null || userId != "") && existingConnaissance == false)
     {
         connaissance.codeUtilisateur = userId;
-        connaissance.codeConnaissance = code;
+        connaissance.codeConnaissance = code.ToUpper();
         var ok = new ConnaissanceRepos(_config).InsertConnaissance(connaissance);
         return (ok != -1) ? Results.Created($"/{ok}", connaissance) : Results.Problem(new ProblemDetails { Detail = "L'insert n'a pas marché", Status = 500 });
     }
@@ -198,7 +194,7 @@ app.MapGet("/GetAllConnaissance", async (IConfiguration _config, HttpContext htt
 });
 
 
-app.MapGet("/GetByIdConnaissance/{idConnaissance}", async (IConfiguration _config, int id, HttpContext http) =>
+app.MapGet("/GetByIdConnaissance/{idConnaissance}", async (IConfiguration _config,  HttpContext http, int idConnaissance) =>
 {
      var token = http.Request.Headers["Authorization"].ToString().Split(" ")[1];
     var claims = JwtUtils.DecodeJwt(token, _config["JwtConfig:Secret"]);
@@ -210,8 +206,8 @@ app.MapGet("/GetByIdConnaissance/{idConnaissance}", async (IConfiguration _confi
         await http.Response.WriteAsync("Utilisateur non connecté.");
         return;
     }
-
-    var ok = new ConnaissanceRepos(_config).GetByIdConnaissance(id,userId);
+    
+    var ok = new ConnaissanceRepos(_config).GetByIdConnaissance(idConnaissance, userId);
 
     http.Response.StatusCode = 200;
     await http.Response.WriteAsJsonAsync(ok);
@@ -235,16 +231,20 @@ app.MapGet("/GetByCodeConnaissance/{codeConnaissance}", async (IConfiguration _c
 });
 
 // Update Connaissances 
-app.MapPost("/UpdateConnaissance/{idConnaissance}", async (IConfiguration _config, ConnaissanceEntity connaissance, HttpContext http) =>
+app.MapPost("/UpdateConnaissance/{idConnaissance}", async (IConfiguration _config, ConnaissanceEntity connaissance, HttpContext http, int idConnaissance) =>
 {
     var token = http.Request.Headers["Authorization"].ToString().Split(" ")[1];
     var claims = JwtUtils.DecodeJwt(token, _config["JwtConfig:Secret"]);
-    var userId = claims[ClaimTypes.NameIdentifier]; var code = connaissance.codeConnaissance.ToUpper();
-    var existingConnaissance = await new ConnaissanceRepos(_config).ExistingConnaissance(code, userId);
+    var userId = claims[ClaimTypes.NameIdentifier]; 
+    var code = connaissance.codeConnaissance.ToUpper();
+    var existingConnaissance = await new ConnaissanceRepos(_config).RedondanceConnaissance(code, userId);
+    Console.WriteLine(connaissance.idConnaissance);
+
     if ((userId != null || userId != "") && existingConnaissance == false)
     {
         connaissance.codeUtilisateur = userId;
         connaissance.codeConnaissance = code;
+        connaissance.idConnaissance = idConnaissance;
         var ok = new ConnaissanceRepos(_config).UpdateConnaissance(connaissance);
         return ok > 0 ? Results.NoContent() : Results.Problem(new ProblemDetails { Detail = "L'update n'a pas marché", Status = 500 });
     }
@@ -262,13 +262,14 @@ app.MapPost("/UpdateConnaissance/{idConnaissance}", async (IConfiguration _confi
 });
 
 // Delete Connaissance 
-app.MapDelete("/DeleteConnaissance/{idConnaissance}", (IConfiguration _config, int id, HttpContext http) =>
+app.MapDelete("/DeleteConnaissance/{idConnaissance}", (IConfiguration _config, HttpContext http, int idConnaissance) =>
 {
     var token = http.Request.Headers["Authorization"].ToString().Split(" ")[1];
     var claims = JwtUtils.DecodeJwt(token, _config["JwtConfig:Secret"]);
-    var userId = claims[ClaimTypes.NameIdentifier]; if (userId != null || userId != "")
+    var userId = claims[ClaimTypes.NameIdentifier]; 
+    if ((userId != null || userId != "") && idConnaissance != 0)
     {
-        var ok = new ConnaissanceRepos(_config).DeleteConnaissance(id, userId);
+        var ok = new ConnaissanceRepos(_config).DeleteConnaissance(idConnaissance, userId);
         return ok > 0 ? Results.Ok() : Results.Problem(new ProblemDetails { Detail = "Le delete n'a pas marché", Status = 500 });
     }
     else
