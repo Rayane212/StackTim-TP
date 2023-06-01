@@ -134,11 +134,25 @@ app.MapPut("/signUp", async (IConfiguration _config, HttpContext http, Utilisate
 
 
 // logout
-app.MapPost("/logout", async (HttpContext http) =>
+app.MapPost("/logout", async (HttpContext http, IConfiguration _config) =>
 {
+    var token = http.Request.Headers["Authorization"].ToString().Split(" ")[1];
+    var claims = JwtUtils.DecodeJwt(token, _config["JwtConfig:Secret"]);
+    var userId = claims[ClaimTypes.NameIdentifier];
+    if (token != "")
+    {
+        http.Request.Headers.Remove("Authorization");
+        http.Response.Redirect("/");
+        http.Response.StatusCode = 200;
+        await http.Response.WriteAsync($"Utilisateur {userId} a été déconnecté.");
+    }
+    else
+    {
+        http.Response.StatusCode = 409;
+        await http.Response.WriteAsync("Il y'a eu un problème.");
+        return;
+    }
 
-    http.Request.Headers.Remove("Authorization");
-    http.Response.Redirect("/");
 });
 
 
@@ -147,7 +161,8 @@ app.MapPut("/CreateConnaissance",async (IConfiguration _config, ConnaissanceEnti
 {
     var token = http.Request.Headers["Authorization"].ToString().Split(" ")[1];
     var claims = JwtUtils.DecodeJwt(token, _config["JwtConfig:Secret"]);
-    var userId = claims[ClaimTypes.NameIdentifier]; var code = connaissance.codeConnaissance.ToUpper();
+    var userId = claims[ClaimTypes.NameIdentifier]; 
+    var code = connaissance.codeConnaissance.ToUpper();
     var existingConnaissance = await new ConnaissanceRepos(_config).ExistingConnaissance(code, userId);
     if ( (userId != null || userId != "") && existingConnaissance == false)
     {
@@ -328,7 +343,7 @@ app.MapGet("/GetAllCategorie", async (IConfiguration _config, HttpContext http) 
 
 });
 
-app.MapGet("/GetByIdCategorie/{idCategorie}", async (IConfiguration _config, int id, HttpContext http) =>
+app.MapGet("/GetByIdCategorie/{idCategorie}", async (IConfiguration _config, int idCategorie, HttpContext http) =>
 {
 
     var token = http.Request.Headers["Authorization"].ToString().Split(" ")[1];
@@ -341,7 +356,7 @@ app.MapGet("/GetByIdCategorie/{idCategorie}", async (IConfiguration _config, int
         return;
     }
 
-    var ok = new CategorieRepos(_config).GetByIdCategorie(id, userId);
+    var ok = new CategorieRepos(_config).GetByIdCategorie(idCategorie, userId);
     http.Response.StatusCode = 200;
     await http.Response.WriteAsJsonAsync(ok);
 });
@@ -359,7 +374,7 @@ app.MapGet("/GetByCodeCategorie/{codeCategorie}", async (IConfiguration _config,
         return;
     }
 
-    var ok = new CategorieRepos(_config).GetByCodeCategorie(codeCategorie, userId);
+    var ok = new CategorieRepos(_config).GetByCodeCategorie(codeCategorie);
     
     http.Response.StatusCode = 200;
     await http.Response.WriteAsJsonAsync(ok);
@@ -367,7 +382,7 @@ app.MapGet("/GetByCodeCategorie/{codeCategorie}", async (IConfiguration _config,
 });
 
 // Update Categorie 
-app.MapPost("/UpdateCategorie/{idCategorie}",async  (IConfiguration _config, CategorieEntity categorie, HttpContext http) =>
+app.MapPost("/UpdateCategorie/{idCategorie}",async  (IConfiguration _config, CategorieEntity categorie, HttpContext http, int idCategorie) =>
 {
     var token = http.Request.Headers["Authorization"].ToString().Split(" ")[1];
     var claims = JwtUtils.DecodeJwt(token, _config["JwtConfig:Secret"]);
@@ -378,6 +393,8 @@ app.MapPost("/UpdateCategorie/{idCategorie}",async  (IConfiguration _config, Cat
     if ((userId != null || userId != "") && existingCategorie == false)
     {
         categorie.codeUtilisateur = userId;
+        categorie.codeCategorie = code; 
+        categorie.idCategorie = idCategorie;
         var ok = new CategorieRepos(_config).UpdateCategorie(categorie);
         return ok > 0 ? Results.NoContent() : Results.Problem(new ProblemDetails { Detail = "L'update n'a pas marché", Status = 500 });
     }

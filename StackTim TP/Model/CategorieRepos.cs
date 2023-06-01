@@ -22,13 +22,13 @@ namespace StackTim_TP.Model
         public List<CategorieEntity> GetAllCategorie(string codeUtilisateur)
         {
             var oSqlConnection = new SqlConnection(_configuration?.GetConnectionString("SQL"));
-            return oSqlConnection.Query<CategorieEntity>("Select * from Categorie where codeUtilisateur = @CodeUtilisateur", new {CodeUtilisateur = codeUtilisateur}).ToList(); ;
+            return oSqlConnection.Query<CategorieEntity>("Select * from Categorie").ToList(); ;
         }
 
-        public CategorieEntity GetByCodeCategorie(string codeCategorie, string codeUtilisateur)
+        public CategorieEntity GetByCodeCategorie(string codeCategorie)
         {
             var oSqlConnection = new SqlConnection(_configuration?.GetConnectionString("SQL"));
-            return oSqlConnection.QueryFirstOrDefault<CategorieEntity>("Select * from Categorie where codeCategorie = @CodeCategorie and codeUtilisateur = @CodeUtilisateur", new { CodeCategorie = codeCategorie, CodeUtilisateur = codeUtilisateur });
+            return oSqlConnection.QueryFirstOrDefault<CategorieEntity>("Select * from Categorie where codeCategorie = @CodeCategorie", new { CodeCategorie = codeCategorie});
 
         }
         public CategorieEntity GetByIdCategorie(int id, string codeUtilisateur)
@@ -40,14 +40,14 @@ namespace StackTim_TP.Model
         public int UpdateCategorie(CategorieEntity categorie)
         {
             var oSqlConnection = new SqlConnection(_configuration?.GetConnectionString("SQL"));
-            return oSqlConnection.Execute("Update Categorie set codeCategorie = @CodeCategorie, nomCategorie = @NomCategorie, descriptifCategorie = @descriptifCategorie where idCategorie = @idCategorie and codeUtilisateur = @CodeUtilisateur", categorie);
+            return oSqlConnection.Execute("Update Categorie set codeCategorie = @CodeCategorie, nomCategorie = @NomCategorie, descriptifCategorie = @descriptifCategorie where idCategorie = @idCategorie", categorie);
 
         }
 
         public int DeleteCategorie(int id, string codeUtilisateur)
         {
             var oSqlConnection = new SqlConnection(_configuration?.GetConnectionString("SQL"));
-            return oSqlConnection.Execute("delete from Categorie where idCategorie = @Id and codeUtilisateur = @CodeUtilisateur", new { Id = id, CodeUtilisateur = codeUtilisateur});
+            return oSqlConnection.Execute("delete from Categorie where idCategorie = @Id", new { Id = id});
 
         }
 
