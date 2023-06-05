@@ -276,6 +276,20 @@ app.MapPost("/UpdateConnaissance/{idConnaissance}", async (IConfiguration _confi
 
 });
 
+// Get Code Utilisateur 
+app.MapGet("/GetCodeUtilisateur", async (IConfiguration _config, HttpContext http) =>
+{
+    var token = http.Request.Headers["Authorization"].ToString().Split(" ")[1];
+    var claims = JwtUtils.DecodeJwt(token, _config["JwtConfig:Secret"]);
+    var userId = claims[ClaimTypes.NameIdentifier];
+
+    var response = new { codeUtilisateur = userId };
+    var jsonResponse = JsonConvert.SerializeObject(response);
+
+    http.Response.ContentType = "application/json";
+    await http.Response.WriteAsync(jsonResponse);
+});
+
 // Delete Connaissance 
 app.MapDelete("/DeleteConnaissance/{idConnaissance}", (IConfiguration _config, HttpContext http, int idConnaissance) =>
 {
@@ -328,7 +342,8 @@ app.MapGet("/GetAllCategorie", async (IConfiguration _config, HttpContext http) 
 {
     var token = http.Request.Headers["Authorization"].ToString().Split(" ")[1];
     var claims = JwtUtils.DecodeJwt(token, _config["JwtConfig:Secret"]);
-    var userId = claims[ClaimTypes.NameIdentifier]; if (userId == null || userId == "")
+    var userId = claims[ClaimTypes.NameIdentifier]; 
+    if (userId == null || userId == "")
 
     {
         http.Response.StatusCode = 401;
@@ -348,7 +363,8 @@ app.MapGet("/GetByIdCategorie/{idCategorie}", async (IConfiguration _config, int
 
     var token = http.Request.Headers["Authorization"].ToString().Split(" ")[1];
     var claims = JwtUtils.DecodeJwt(token, _config["JwtConfig:Secret"]);
-    var userId = claims[ClaimTypes.NameIdentifier]; if (userId == null || userId == "")
+    var userId = claims[ClaimTypes.NameIdentifier]; 
+    if (userId == null || userId == "")
 
     {
         http.Response.StatusCode = 401;
@@ -366,7 +382,8 @@ app.MapGet("/GetByCodeCategorie/{codeCategorie}", async (IConfiguration _config,
 
     var token = http.Request.Headers["Authorization"].ToString().Split(" ")[1];
     var claims = JwtUtils.DecodeJwt(token, _config["JwtConfig:Secret"]);
-    var userId = claims[ClaimTypes.NameIdentifier]; if (userId == null || userId == "")
+    var userId = claims[ClaimTypes.NameIdentifier]; 
+    if (userId == null || userId == "")
 
     {
         http.Response.StatusCode = 401;

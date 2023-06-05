@@ -109,7 +109,7 @@ namespace StackTim_TP.Model
                     @"SELECT COUNT(*) FROM Connaissance WHERE codeConnaissance = @CodeConnaissance ",
                     new { CodeConnaissance = codeConnaissance.ToUpper(), CodeUtilisateur = userId });
 
-                return result > 0;
+                return result > 1;
             }
         }
 
